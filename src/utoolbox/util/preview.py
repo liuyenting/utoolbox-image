@@ -1,67 +1,13 @@
 import logging
-
-import click
 import numpy as np
+from skimage.transform import rescale
 
-from utoolbox.io import open_dataset
-from utoolbox.io.dataset import (
-    MultiChannelDatasetIterator,
-    MultiViewDatasetIterator,
-    TiledDatasetIterator,
-    TimeSeriesDatasetIterator,
-)
+__all__ = ["cuboid_net"]
 
-__all__ = ["preview"]
-
-logger = logging.getLogger("utoolbox.cli.dataset")
+logger = logging.getLogger("utoolbox.util.preview")
 
 
-@click.group()
-@click.pass_context
-def preview(ctx):
-    """Generate previews for the dataset."""
-    pass
-
-
-@preview.command()
-@click.argument("path")
-@click.pass_context
-def mip(ctx, path):
-    """Generate maximum intensity projections."""
-    raise NotImplementedError
-
-
-@preview.command()
-@click.argument("path")
-@click.pass_context
-def surface(ctx, path):
-    """Extract data chunk surface layers."""
-    show_trace = logger.getEffectiveLevel() <= logging.DEBUG
-    src_ds = open_dataset(path, show_trace=show_trace)
-
-    for time, _ in TimeSeriesDatasetIterator(src_ds):
-        if time is None:
-            break
-        else:
-            raise ValueError("surface preview does not support time series dataset")
-
-    # IJ hyperstack order T[Z][C]YXS
-    # re-purpose axis meaning:
-    #   - Z, slice
-    #   - C, channel
-    iterator = TiledDatasetIterator(
-        src_ds, axes="zyx", return_key=True, return_format="index"
-    )
-    for tile, t_ds in iterator:
-        tile = "_".join(f"{ax:03d}" for ax in zip("xyz", reversed(tile)))
-
-        for view, v_ds in MultiViewDatasetIterator(t_ds):
-            for channel, c_ds in MultiChannelDatasetIterator(v_ds):
-                print(f"{tile}, {view}, {channel}")
-                print(src_ds[c_ds])
-
-
-def _generate_net_faces(array):
+def _generate_net_faces(array, scale=(1, 1, 1)):
     """
     Generate each face of the cuboid.
 
@@ -75,36 +21,47 @@ def _generate_net_faces(array):
 
     Args:
         array (np.ndarray): a 3-D stack
+        scale (tuple of float, optional): normalized scale
     """
 
-    # array slicing -> net image
-    #   0 XZ [::-1, 0, :]
-    #   1 YZ [:, :, 0]
-    #   2 XY [0, :, :]
-    #   3 YZ [:, ::-1, 0]
-    #   4 XY [-1, :, ::-1]
-    #   5 XZ [:, -1, :]
+    # array slicing -> actual ax -> net image
+    #   0 XZ, ZX, [::-1, 0, :]
+    #   1 YZ, YZ, [:, :, 0]
+    #   2 XY, YX, [0, :, :]
+    #   3 YZ, YZ, [:, ::-1, 0]
+    #   4 XY, YX, [-1, :, ::-1]
+    #   5 XZ, ZX, [:, -1, :]
 
-    return [
+    faces = [
         array[::-1, 0, :],
-        np.rot90(array[:, :, 0], k=1, axes=(1, 0)),
+        np.rot90(np.array(array[:, :, 0]), k=1, axes=(1, 0)),
         array[0, :, :],
-        np.rot90(array[::-1, :, -1], k=1, axes=(1, 0)),
+        np.rot90(np.array(array[::-1, :, -1]), k=1, axes=(1, 0)),
         array[-1, :, ::-1],
         array[:, -1, :],
     ]
 
+    # scale each face to their correct aspect ratio
+    sz, sy, sx = scale
+    ratio = [(sz, sx), (sy, sz), (sy, sx), (sy, sz), (sy, sx), (sz, sx)]
+    for i, (scale, face) in enumerate(zip(ratio, faces)):
+        faces[i] = rescale(face, scale, anti_aliasing=True, preserve_range=True)
 
-def generate_net(array, gap=1, return_faces=False):
+    return faces
+
+
+def cuboid_net(array, scale=(1, 1, 1), gap=1, return_faces=False):
     """
     Generate the net with optimal output size.
 
     Args:
         array (np.array): a 3-D stack
+        scale (tuple of float): voxel scale of the stack, default to isotropic
         gap (int, optional): gap between faces
         return_faces (bool, optional): return the raw faces
     """
-    dtype, (nz, ny, nx) = array.dtype, array.shape
+    dtype, shape = array.dtype, array.shape
+    nz, ny, nx = shape
 
     # 3 types of net (in order)
     #
@@ -179,7 +136,7 @@ def generate_net(array, gap=1, return_faces=False):
     ind_lut = [[0, 1, 2, 3, 4, 5], [2, 1, 5, 3, 0, 4], [0, 4, 1, 2, 3, 5]]
     rot_lut = [[0, 0, 0, 0, 0, 0], [0, -1, 0, 1, 2, 2], [-1, 0, 0, 0, 0, 1]]
 
-    faces0 = _generate_net_faces(array)
+    faces0 = _generate_net_faces(array, scale)
     faces = []
     for ind, rot in zip(ind_lut[ai], rot_lut[ai]):
         face = faces0[ind]
@@ -211,16 +168,3 @@ def generate_net(array, gap=1, return_faces=False):
         return canvas, faces0
     else:
         return canvas
-
-
-if __name__ == "__main__":
-    import imageio
-
-    data = imageio.volread(
-        "kidney_Iter_0_ch1_stack0000_488nm_0000000msec_0075013047msecAbs.tif"
-    )
-    canvas = generate_net(data)
-    imageio.imwrite("canvas.tif", canvas)
-    # faces = _generate_net_faces(data)
-    # for i, image in enumerate(faces):
-    #    imageio.imwrite(f"{i:02d}.tif", image)

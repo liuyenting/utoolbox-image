@@ -39,7 +39,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     # project homepage
-    url="https://github.com/liuyenting/utoolbox-template",
+    url="https://github.com/liuyenting/utoolbox-image",
     # name or organization
     author="Liu, Yen-Ting",
     classifiers=[
@@ -64,7 +64,7 @@ setup(
     # other packages the project depends on to run
     #   install_requires -> necessity
     #   requirements.txt
-    install_requires=["utoolbox-core"],
+    install_requires=["utoolbox-core", "scikit-image"],
     # additional groups of dependencies here for the "extras" syntax
     extras_require={},
     # data files included in packages
