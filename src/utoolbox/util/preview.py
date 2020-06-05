@@ -60,8 +60,17 @@ def cuboid_net(array, scale=(1, 1, 1), gap=1, return_faces=False):
         gap (int, optional): gap between faces
         return_faces (bool, optional): return the raw faces
     """
-    dtype, shape = array.dtype, array.shape
-    nz, ny, nx = shape
+    dtype = array.dtype
+    
+    #       +---+
+    #       | 0 |
+    #   +---+---+---+---+
+    #   | 1 | 2 | 3 | 4 |
+    #   +---+---+---+---+
+    #       | 5 |
+    #       +---+
+    faces0 = _generate_net_faces(array, scale)
+    nz, ny, nx = faces0[0].shape[0], faces0[2].shape[0], faces0[2].shape[1]
 
     # 3 types of net (in order)
     #
@@ -136,7 +145,6 @@ def cuboid_net(array, scale=(1, 1, 1), gap=1, return_faces=False):
     ind_lut = [[0, 1, 2, 3, 4, 5], [2, 1, 5, 3, 0, 4], [0, 4, 1, 2, 3, 5]]
     rot_lut = [[0, 0, 0, 0, 0, 0], [0, -1, 0, 1, 2, 2], [-1, 0, 0, 0, 0, 1]]
 
-    faces0 = _generate_net_faces(array, scale)
     faces = []
     for ind, rot in zip(ind_lut[ai], rot_lut[ai]):
         face = faces0[ind]
