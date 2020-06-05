@@ -33,7 +33,7 @@ setup(
     #   bumpversion release
     # to next version
     #   bump patch/minor/major
-    version="0.0.1",
+    version="0.0.2.dev0",
     # one-line description for the summary field
     description="Image processing functions for uToolbox.",
     long_description=long_description,
