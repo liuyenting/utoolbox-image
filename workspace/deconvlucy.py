@@ -60,5 +60,5 @@ def main(image_path, psf_path):
 if __name__ == "__main__":
     main(
         "C:/Users/Andy/Desktop/background_removal/flybrain_Iter_ch0_stack0000_640nm_0000000msec_0015869850msecAbs.tif",
-        "C:/Users/Andy/Desktop/background_removal/psf/NA1p05_zp6um_cropped.tif",
+        "C:/Users/Andy/Desktop/background_removal/psf/NA1p05_zp2um_cropped.tif",
     )
